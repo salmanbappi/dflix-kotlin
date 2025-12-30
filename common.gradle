@@ -2,7 +2,6 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlinx-serialization'
 
-assert !ext.has("pkgNameSuffix")
 assert !ext.has("libVersion")
 
 assert extName.chars().max().asInt < 0x180 : "Extension name should be romanized"
@@ -33,7 +32,7 @@ android {
     defaultConfig {
         minSdk AndroidConfig.minSdk
         targetSdk AndroidConfig.targetSdk
-        applicationIdSuffix project.parent.name + "." + project.name
+        applicationIdSuffix project.ext.has("pkgNameSuffix") ? project.ext.pkgNameSuffix : project.parent.name + "." + project.name
         versionCode theme == null ? extVersionCode : theme.baseVersionCode + overrideVersionCode
         versionName "14.$versionCode"
         base {
