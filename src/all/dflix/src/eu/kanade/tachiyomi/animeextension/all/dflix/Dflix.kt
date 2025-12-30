@@ -9,6 +9,11 @@ import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.Cookie
 import okhttp3.Headers
@@ -210,7 +215,28 @@ class Dflix : AnimeHttpSource() {
             if (mediaType == "m") {
                 getMovieMedia(document)
             } else {
-                sortEpisodes(extractEpisodes(document))
+                val seasonLinks = document.select("tbody tr th.card a[href^='/s/view/']")
+                    .map { it.attr("href") }
+                    .reversed()
+                
+                if (seasonLinks.isEmpty()) {
+                    sortEpisodes(extractEpisodes(document))
+                } else {
+                    val semaphore = Semaphore(3)
+                    coroutineScope {
+                        val episodes = seasonLinks.map { link ->
+                            async {
+                                semaphore.withPermit {
+                                    val res = client.newCall(GET(fixUrl(link), headers)).execute()
+                                    val doc = res.asJsoup()
+                                    res.close()
+                                    extractEpisodes(doc)
+                                }
+                            }
+                        }.awaitAll().flatten()
+                        sortEpisodes(episodes)
+                    }
+                }
             }
         }
     }
@@ -246,7 +272,10 @@ class Dflix : AnimeHttpSource() {
     }
 
     private fun sortEpisodes(list: List<EpisodeData>): List<SEpisode> {
-        return list.mapIndexed { index, it ->
+        return list.sortedWith(
+            compareByDescending<EpisodeData> { it.seasonNumber }
+                .thenByDescending { it.episodeNumber }
+        ).mapIndexed { index, it ->
             SEpisode.create().apply {
                 url = it.videoUrl
                 name = "${it.seasonEpisode} - ${it.episodeName}".trim()
@@ -269,7 +298,10 @@ class Dflix : AnimeHttpSource() {
         val quality: String,
         val episodeName: String,
         val size: String
-    )
+    ) {
+        val seasonNumber: Int = SEASON_PATTERN.find(seasonEpisode)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+        val episodeNumber: Int = EPISODE_PATTERN.find(seasonEpisode)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+    }
 
     class CookieManager(private val client: OkHttpClient) {
         private val cookieUrl = "https://dflix.discoveryftp.net/login/demo".toHttpUrl()
@@ -310,6 +342,8 @@ class Dflix : AnimeHttpSource() {
     }
 
     companion object {
+        private val SEASON_PATTERN = Regex("""S(\d+)""")
+        private val EPISODE_PATTERN = Regex("""EP (\d+)""")
         private val sizeRegex = Regex(""".*\s(\d+\.\d+\s+MB)$""")
     }
 }
