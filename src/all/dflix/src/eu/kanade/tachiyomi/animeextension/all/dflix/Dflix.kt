@@ -9,11 +9,7 @@ import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.util.asJsoup
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Cookie
 import okhttp3.Headers
 import okhttp3.HttpUrl
@@ -34,7 +30,7 @@ class Dflix : AnimeHttpSource() {
 
     override val supportsLatest = true
 
-    override val id: Long = 5181466391484419844L // Unique ID
+    override val id: Long = 5181466391484419844L
 
     override val client: OkHttpClient = super.client.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -72,18 +68,23 @@ class Dflix : AnimeHttpSource() {
         }
     }
 
-    override fun popularAnimeRequest(page: Int):
- Request {
+    override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
+        return GET(fixUrl(Filters.getUrl(query, filters)), headers)
+    }
+
+    override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
+
+    override fun popularAnimeRequest(page: Int): Request {
         return GET("$baseUrl/m/recent/$page", headers)
     }
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val document = response.asJsoup()
-        val animeList = document.select("div.card").map {
+        val animeList = document.select("div.card").map { element ->
             SAnime.create().apply {
-                title = it.selectFirst("h5 a")?.text() ?: ""
-                url = it.selectFirst("h5 a")?.attr("href") ?: ""
-                thumbnail_url = it.selectFirst("img")?.attr("abs:src")?.replace(" ", "%20") ?: ""
+                title = element.selectFirst("h5 a")?.text() ?: ""
+                url = element.selectFirst("h5 a")?.attr("href") ?: ""
+                thumbnail_url = element.selectFirst("img")?.attr("abs:src")?.replace(" ", "%20") ?: ""
             }
         }.filter { it.title.isNotEmpty() }
         
@@ -96,8 +97,7 @@ class Dflix : AnimeHttpSource() {
 
     override fun getFilterList() = Filters.getFilterList()
 
-    override fun animeDetailsRequest(anime: SAnime):
- Request {
+    override fun animeDetailsRequest(anime: SAnime): Request {
         return GET(fixUrl(anime.url), headers)
     }
 
@@ -142,15 +142,15 @@ class Dflix : AnimeHttpSource() {
     }
 
     private fun extractEpisodes(document: Document): List<EpisodeData> {
-        return document.select("div.container > div > div.card").mapNotNull {
-            val titleElement = it.selectFirst("h5") ?: return@mapNotNull null
+        return document.select("div.container > div > div.card").mapNotNull { element ->
+            val titleElement = element.selectFirst("h5") ?: return@mapNotNull null
             val rawTitle = titleElement.ownText().trim()
             val seasonEpisode = rawTitle.split("&nbsp;").first().trim()
-            val url = it.selectFirst("h5 a")?.attr("href")?.trim() ?: ""
-            val qualityText = it.selectFirst("h5 .badge-fill")?.text() ?: ""
+            val url = element.selectFirst("h5 a")?.attr("href")?.trim() ?: ""
+            val qualityText = element.selectFirst("h5 .badge-fill")?.text() ?: ""
             val quality = sizeRegex.replace(qualityText, "$1").trim()
-            val epName = it.selectFirst("h4")?.ownText()?.trim() ?: ""
-            val size = it.selectFirst("h4 .badge-outline")?.text()?.trim() ?: ""
+            val epName = element.selectFirst("h4")?.ownText()?.trim() ?: ""
+            val size = element.selectFirst("h4 .badge-outline")?.text()?.trim() ?: ""
             
             if (seasonEpisode.isNotEmpty() && url.isNotEmpty()) {
                 EpisodeData(seasonEpisode, url, quality, epName, size)
@@ -172,9 +172,7 @@ class Dflix : AnimeHttpSource() {
     }
 
     private fun sortEpisodes(list: List<EpisodeData>): List<SEpisode> {
-        return list.mapIndexed {
-            index,
-            it ->
+        return list.mapIndexed { index, it ->
             SEpisode.create().apply {
                 url = it.videoUrl
                 name = "${it.seasonEpisode} - ${it.episodeName}".trim()
@@ -229,6 +227,6 @@ class Dflix : AnimeHttpSource() {
     }
 
     companion object {
-        private val sizeRegex = Regex(".*\s(\d+\.\d+\s+MB)$")
+        private val sizeRegex = Regex(""".*\s(\d+\.\d+\s+MB)$""")
     }
 }
