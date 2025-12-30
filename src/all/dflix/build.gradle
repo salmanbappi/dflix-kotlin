@@ -5,7 +5,7 @@ ext {
     author = 'salmanbappi'
     extClass = '.Dflix'
     baseUrl = 'https://dflix.discoveryftp.net'
-    extVersionCode = 1021
+    extVersionCode = 1022
 }
 
 apply from: "$rootDir/common.gradle"
