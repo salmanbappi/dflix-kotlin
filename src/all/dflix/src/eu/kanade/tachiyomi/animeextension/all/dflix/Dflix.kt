@@ -29,7 +29,7 @@ class Dflix : AnimeHttpSource() {
 
     override val name = "Dflix"
 
-    override val baseUrl = "https://dflix.discoveryftp.net"
+    override val baseUrl = "http://dflix.discoveryftp.net"
 
     override val lang = "all"
 
@@ -44,6 +44,23 @@ class Dflix : AnimeHttpSource() {
             maxRequests = 100
             maxRequestsPerHost = 100
         })
+        .addInterceptor { chain ->
+            val request = chain.request()
+            val response = chain.proceed(request)
+            
+            if (response.request.url.encodedPath.contains("login/destroy") || 
+                response.request.url.encodedPath.contains("login/index")) {
+                response.close()
+                cm.refreshCookies()
+                val newRequest = request.newBuilder()
+                    .removeHeader("Cookie")
+                    .addHeader("Cookie", cm.getCookiesHeaders())
+                    .build()
+                chain.proceed(newRequest)
+            } else {
+                response
+            }
+        }
         .build()
 
     private val cm by lazy { CookieManager(client) }
@@ -333,6 +350,12 @@ class Dflix : AnimeHttpSource() {
                 }
             }
             return cookies.joinToString("; ") { "${it.name}=${it.value}" }
+        }
+
+        fun refreshCookies() {
+            synchronized(lock) {
+                cookies = fetchCookies()
+            }
         }
 
         private fun fetchCookies(): List<Cookie> {
