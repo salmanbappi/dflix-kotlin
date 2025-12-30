@@ -1,2 +1,2 @@
-# Dflix Kotlin Extension
+# Dflix Extension
 This is a Kotlin-based Aniyomi extension for Dflix, optimized for better performance and stability.
