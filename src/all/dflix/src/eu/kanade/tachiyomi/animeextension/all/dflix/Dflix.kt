@@ -57,9 +57,52 @@ class Dflix : AnimeHttpSource() {
 
     override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
         return withContext(Dispatchers.IO) {
-            val url = Filters.getUrl(query, filters)
-            val response = client.newCall(GET(fixUrl(url), headers)).execute()
-            popularAnimeParse(response)
+            if (query.isNotEmpty()) {
+                val movies = fetchAnimeByType(query, "m")
+                val series = fetchAnimeByType(query, "s")
+                AnimesPage(movies + series, false)
+            } else {
+                val url = Filters.getUrl(query, filters)
+                val response = client.newCall(GET(fixUrl(url), headers)).execute()
+                popularAnimeParse(response)
+            }
+        }
+    }
+
+    private suspend fun fetchAnimeByType(query: String, type: String): List<SAnime> {
+        val formBody = okhttp3.FormBody.Builder()
+            .add("term", query)
+            .add("types", type)
+            .build()
+        
+        val request = okhttp3.Request.Builder()
+            .url("$baseUrl/search")
+            .post(formBody)
+            .headers(headers)
+            .build()
+        
+        return try {
+            val response = client.newCall(request).execute()
+            val document = response.asJsoup()
+            response.close()
+            
+            document.select("div.moviesearchiteam a").map { element ->
+                val card = element.selectFirst("div.p-1")
+                SAnime.create().apply {
+                    url = element.attr("href")
+                    thumbnail_url = element.selectFirst("img")?.attr("src") ?: "localhost"
+                    var titleText = card?.selectFirst("div.searchtitle")?.text() ?: "Unknown"
+                    if (type == "m") {
+                        val details = card?.selectFirst("div.searchdetails")?.text() ?: ""
+                        if (details.contains("4K", ignoreCase = true)) {
+                            titleText += " 4K"
+                        }
+                    }
+                    title = titleText
+                }
+            }
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 
@@ -75,14 +118,14 @@ class Dflix : AnimeHttpSource() {
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val document = response.asJsoup()
-        val animeList = document.select("div.card, div.movie-item").map { element ->
+        val animeList = document.select("div.card a.cfocus").map { element ->
+            val card = element.parent()
             SAnime.create().apply {
-                val titleEl = element.selectFirst("h5 a, h4 a, .title a")
-                title = titleEl?.text() ?: ""
-                url = titleEl?.attr("href") ?: ""
+                title = card?.selectFirst("div.details h3")?.text() ?: "Unknown"
+                url = element.attr("href")
                 thumbnail_url = element.selectFirst("img")?.attr("abs:src")?.replace(" ", "%20") ?: ""
             }
-        }.filter { it.title.isNotEmpty() }
+        }.filter { it.title != "Unknown" }
         
         val hasNextPage = document.selectFirst("a.page-link[rel=next], .pagination .next") != null
         return AnimesPage(animeList, hasNextPage)
@@ -195,41 +238,38 @@ class Dflix : AnimeHttpSource() {
 
     class CookieManager(private val client: OkHttpClient) {
         private val cookieUrl = "https://dflix.discoveryftp.net/login/demo".toHttpUrl()
+        
+        private val cookieClient = client.newBuilder()
+            .followRedirects(false)
+            .build()
+
         @Volatile
-        private var cookieMap = mutableMapOf<String, String>()
+        private var cookies: List<Cookie>? = null
         private val lock = Any()
 
         fun getCookiesHeaders(): String {
-            if (cookieMap.isEmpty()) {
-                synchronized(lock) {
-                    if (cookieMap.isEmpty()) {
-                        fetchCookies()
-                    }
-                }
+            val c = cookies ?: synchronized(lock) {
+                cookies ?: fetchCookies().also { cookies = it }
             }
-            return cookieMap.map { "${it.key}=${it.value}" }.joinToString("; ")
+            return c.joinToString("; ") { "${it.name}=${it.value}" }
         }
 
-        private fun fetchCookies() {
+        private fun fetchCookies(): List<Cookie> {
             val req = Request.Builder()
                 .url(cookieUrl)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .header("Referer", "https://dflix.discoveryftp.net/login")
-                .header("X-Requested-With", "XMLHttpRequest")
                 .build()
-            try {
-                val res = client.newBuilder()
-                    .followRedirects(true)
-                    .followSslRedirects(true)
-                    .build()
-                    .newCall(req)
-                    .execute()
-                
-                val cookies = Cookie.parseAll(cookieUrl, res.headers)
-                cookies.forEach { cookieMap[it.name] = it.value }
+            return try {
+                val res = cookieClient.newCall(req).execute()
+                val cookieList = if (res.isRedirect) {
+                    Cookie.parseAll(cookieUrl, res.headers)
+                } else {
+                    emptyList()
+                }
                 res.close()
+                cookieList
             } catch (e: Exception) {
-                // Log or handle error
+                emptyList()
             }
         }
     }

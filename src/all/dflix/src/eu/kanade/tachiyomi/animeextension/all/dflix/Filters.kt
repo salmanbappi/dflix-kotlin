@@ -22,24 +22,24 @@ object Filters {
             return "https://dflix.discoveryftp.net/search/$query"
         }
 
-        val modeIndex = (filters[1] as DflixSelect).state
+        val modeIndex = if (filters.size > 1) (filters[1] as DflixSelect).state else 0
         return when (modeIndex) {
             0 -> "https://dflix.discoveryftp.net/m/recent/1"
             1 -> {
-                val catIndex = (filters[4] as DflixSelect).state
-                val category = FilterData.CATEGORIES[catIndex]
+                val catIndex = if (filters.size > 4) (filters[4] as DflixSelect).state else 0
+                val category = FilterData.CATEGORIES.getOrElse(catIndex) { "Hindi" }
                 "https://dflix.discoveryftp.net/m/uhd/$category"
             }
             2 -> {
-                val genreIndex = (filters[5] as DflixSelect).state
-                val genre = FilterData.GENRES[genreIndex]
+                val genreIndex = if (filters.size > 5) (filters[5] as DflixSelect).state else 0
+                val genre = FilterData.GENRES.getOrElse(genreIndex) { "Action" }
                 "https://dflix.discoveryftp.net/m/genre/$genre"
             }
             3 -> {
-                val catIndex = (filters[6] as DflixSelect).state
-                val category = FilterData.CATEGORIES[catIndex]
-                val yearIndex = (filters[7] as DflixSelect).state
-                val year = FilterData.YEARS[yearIndex]
+                val catIndex = if (filters.size > 6) (filters[6] as DflixSelect).state else 0
+                val category = FilterData.CATEGORIES.getOrElse(catIndex) { "Hindi" }
+                val yearIndex = if (filters.size > 7) (filters[7] as DflixSelect).state else 0
+                val year = FilterData.YEARS.getOrElse(yearIndex) { "2025" }
                 "https://dflix.discoveryftp.net/m/type/$category/$year"
             }
             4 -> "https://dflix.discoveryftp.net/m/dual/Hindi"
