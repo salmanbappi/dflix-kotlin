@@ -35,7 +35,7 @@ class Dflix : AnimeHttpSource() {
 
     override val supportsLatest = true
 
-    override val id: Long = 1332249718424134178L
+    override val id: Long = 5181466391484419844L
 
     override val client: OkHttpClient = super.client.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)

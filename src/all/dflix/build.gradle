@@ -4,7 +4,7 @@ ext {
     applicationId = 'eu.kanade.tachiyomi.animeextension.all.dflix'
     extClass = '.Dflix'
     baseUrl = 'https://dflix.discoveryftp.net'
-    extVersionCode = 1014
+    extVersionCode = 1015
 }
 
 apply from: "$rootDir/common.gradle"
