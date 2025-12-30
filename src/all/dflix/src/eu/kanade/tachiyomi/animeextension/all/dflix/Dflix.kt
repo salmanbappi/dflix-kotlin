@@ -48,17 +48,12 @@ class Dflix : AnimeHttpSource() {
 
     private val cm by lazy { CookieManager(client) }
 
-    private val globalHeaders by lazy {
-        super.headersBuilder()
-            .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            .add("Accept", "*/*")
-            .add("Cookie", cm.getCookiesHeaders())
-            .add("Referer", "$baseUrl/")
-            .add("X-Requested-With", "XMLHttpRequest")
-            .build()
-    }
-
-    override fun headersBuilder() = globalHeaders.newBuilder()
+    override fun headersBuilder() = super.headersBuilder()
+        .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .add("Accept", "*/*")
+        .add("Cookie", cm.getCookiesHeaders())
+        .add("Referer", "$baseUrl/")
+        .add("X-Requested-With", "XMLHttpRequest")
 
     private fun fixUrl(url: String): String {
         if (url.isBlank()) return url
@@ -224,7 +219,8 @@ class Dflix : AnimeHttpSource() {
                 } else {
                     val semaphore = Semaphore(3)
                     coroutineScope {
-                        val episodes = seasonLinks.map { link ->
+                        val allLinks = (listOf(anime.url) + seasonLinks).distinct()
+                        val episodes = allLinks.map { link ->
                             async {
                                 semaphore.withPermit {
                                     val res = client.newCall(GET(fixUrl(link), headers)).execute()
@@ -242,7 +238,7 @@ class Dflix : AnimeHttpSource() {
     }
 
     private fun extractEpisodes(document: Document): List<EpisodeData> {
-        return document.select("div.container > div > div.card").mapNotNull { element ->
+        return document.select("div.card").mapNotNull { element ->
             val titleElement = element.selectFirst("h5") ?: return@mapNotNull null
             val rawTitle = titleElement.ownText().trim()
             val seasonEpisode = rawTitle.split("&nbsp;").first().trim()
@@ -272,21 +268,21 @@ class Dflix : AnimeHttpSource() {
     }
 
     private fun sortEpisodes(list: List<EpisodeData>): List<SEpisode> {
-        return list.sortedWith(
+        return list.distinctBy { it.videoUrl }.sortedWith(
             compareByDescending<EpisodeData> { it.seasonNumber }
                 .thenByDescending { it.episodeNumber }
         ).mapIndexed { index, it ->
             SEpisode.create().apply {
                 url = it.videoUrl
                 name = "${it.seasonEpisode} - ${it.episodeName}".trim()
-                episode_number = (list.size - index).toFloat()
+                episode_number = (list.distinctBy { e -> e.videoUrl }.size - index).toFloat()
                 scanlator = "${it.quality}  •  ${it.size}"
             }
         }
     }
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        return listOf(Video(episode.url, "Video", fixUrl(episode.url)))
+        return listOf(Video(episode.url, "Video", fixUrl(episode.url), headers))
     }
 
     override fun episodeListParse(response: Response): List<SEpisode> = throw Exception("Not used")
