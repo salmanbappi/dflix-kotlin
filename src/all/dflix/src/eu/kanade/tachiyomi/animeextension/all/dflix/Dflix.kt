@@ -43,16 +43,11 @@ class Dflix : AnimeHttpSource() {
 
     private val cm by lazy { CookieManager(client) }
 
-    private val globalHeaders by lazy {
-        super.headersBuilder()
-            .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            .add("Accept", "*/*")
-            .add("Cookie", cm.getCookiesHeaders())
-            .add("Referer", "$baseUrl/")
-            .build()
-    }
-
-    override fun headersBuilder() = globalHeaders.newBuilder()
+    override fun headersBuilder() = super.headersBuilder()
+        .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .add("Accept", "*/*")
+        .add("Cookie", cm.getCookiesHeaders())
+        .add("Referer", "$baseUrl/")
 
     private fun fixUrl(url: String): String {
         if (url.isBlank()) return url
@@ -80,15 +75,16 @@ class Dflix : AnimeHttpSource() {
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val document = response.asJsoup()
-        val animeList = document.select("div.card").map { element ->
+        val animeList = document.select("div.card, div.movie-item").map { element ->
             SAnime.create().apply {
-                title = element.selectFirst("h5 a")?.text() ?: ""
-                url = element.selectFirst("h5 a")?.attr("href") ?: ""
+                val titleEl = element.selectFirst("h5 a, h4 a, .title a")
+                title = titleEl?.text() ?: ""
+                url = titleEl?.attr("href") ?: ""
                 thumbnail_url = element.selectFirst("img")?.attr("abs:src")?.replace(" ", "%20") ?: ""
             }
         }.filter { it.title.isNotEmpty() }
         
-        val hasNextPage = document.selectFirst("a.page-link[rel=next]") != null
+        val hasNextPage = document.selectFirst("a.page-link[rel=next], .pagination .next") != null
         return AnimesPage(animeList, hasNextPage)
     }
 
@@ -200,28 +196,40 @@ class Dflix : AnimeHttpSource() {
     class CookieManager(private val client: OkHttpClient) {
         private val cookieUrl = "https://dflix.discoveryftp.net/login/demo".toHttpUrl()
         @Volatile
-        private var cookies: List<Cookie>? = null
+        private var cookieMap = mutableMapOf<String, String>()
         private val lock = Any()
 
         fun getCookiesHeaders(): String {
-            val c = cookies ?: synchronized(lock) {
-                cookies ?: fetchCookies().also { cookies = it }
+            if (cookieMap.isEmpty()) {
+                synchronized(lock) {
+                    if (cookieMap.isEmpty()) {
+                        fetchCookies()
+                    }
+                }
             }
-            return c.joinToString("; ") { "${it.name}=${it.value}" }
+            return cookieMap.map { "${it.key}=${it.value}" }.joinToString("; ")
         }
 
-        private fun fetchCookies(): List<Cookie> {
+        private fun fetchCookies() {
             val req = Request.Builder()
                 .url(cookieUrl)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Referer", "https://dflix.discoveryftp.net/login")
+                .header("X-Requested-With", "XMLHttpRequest")
                 .build()
-            return try {
-                val res = client.newBuilder().followRedirects(false).build().newCall(req).execute()
-                val cookieList = Cookie.parseAll(cookieUrl, res.headers)
+            try {
+                val res = client.newBuilder()
+                    .followRedirects(true)
+                    .followSslRedirects(true)
+                    .build()
+                    .newCall(req)
+                    .execute()
+                
+                val cookies = Cookie.parseAll(cookieUrl, res.headers)
+                cookies.forEach { cookieMap[it.name] = it.value }
                 res.close()
-                cookieList
             } catch (e: Exception) {
-                emptyList()
+                // Log or handle error
             }
         }
     }

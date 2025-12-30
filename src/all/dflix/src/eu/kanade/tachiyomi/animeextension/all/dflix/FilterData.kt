@@ -2,7 +2,7 @@ package eu.kanade.tachiyomi.animeextension.all.dflix
 
 object FilterData {
     val MODES = arrayOf(
-        "Recent Movies",
+        "Select Mode...",
         "4K",
         "Genre",
         "Type & Year",
