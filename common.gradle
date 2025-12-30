@@ -19,20 +19,14 @@ if (theme != null) evaluationDependsOn(theme.path)
 android {
     compileSdk AndroidConfig.compileSdk
 
-    namespace "eu.kanade.tachiyomi.animeextension"
-    sourceSets {
-        main {
-            manifest.srcFile "AndroidManifest.xml"
-            java.srcDirs = ['src']
-            res.srcDirs = ['res']
-            assets.srcDirs = ['assets']
-        }
-    }
-
     defaultConfig {
         minSdk AndroidConfig.minSdk
         targetSdk AndroidConfig.targetSdk
-        applicationIdSuffix project.ext.has("pkgNameSuffix") ? project.ext.pkgNameSuffix : project.parent.name + "." + project.name
+        if (project.ext.has("applicationId")) {
+            applicationId project.ext.applicationId
+        } else {
+            applicationIdSuffix project.ext.has("pkgNameSuffix") ? project.ext.pkgNameSuffix : project.parent.name + "." + project.name
+        }
         versionCode theme == null ? extVersionCode : theme.baseVersionCode + overrideVersionCode
         versionName "14.$versionCode"
         base {
@@ -53,6 +47,15 @@ android {
                     SOURCEHOST  : path[0],
                     SOURCESCHEME: split[0],
             ]
+        }
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile "AndroidManifest.xml"
+            java.srcDirs = ['src']
+            res.srcDirs = ['res']
+            assets.srcDirs = ['assets']
         }
     }
 

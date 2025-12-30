@@ -1,9 +1,10 @@
 ext {
     extName = 'Dflix Kotlin'
-    pkgNameSuffix = 'dflixkotlin'
+    pkgNameSuffix = 'dflix'
+    applicationId = 'eu.kanade.tachiyomi.animeextension.all.dflix'
     extClass = '.Dflix'
     baseUrl = 'https://dflix.discoveryftp.net'
-    extVersionCode = 1
+    extVersionCode = 1010
 }
 
 apply from: "$rootDir/common.gradle"
