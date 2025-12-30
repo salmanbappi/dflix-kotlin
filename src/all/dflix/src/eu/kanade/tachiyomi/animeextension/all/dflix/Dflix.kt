@@ -29,7 +29,7 @@ class Dflix : AnimeHttpSource() {
 
     override val name = "Dflix"
 
-    override val baseUrl = "http://dflix.discoveryftp.net"
+    override val baseUrl = "https://dflix.discoveryftp.net"
 
     override val lang = "all"
 

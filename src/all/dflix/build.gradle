@@ -5,8 +5,8 @@ ext {
     namespace = 'eu.kanade.tachiyomi.animeextension.all.dflix'
     author = 'salmanbappi'
     extClass = '.Dflix'
-    baseUrl = 'http://dflix.discoveryftp.net'
-    extVersionCode = 1031
+    baseUrl = 'https://dflix.discoveryftp.net'
+    extVersionCode = 1032
 }
 
 apply from: "$rootDir/common.gradle"
