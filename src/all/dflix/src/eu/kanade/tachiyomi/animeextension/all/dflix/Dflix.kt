@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit
 
 class Dflix : AnimeHttpSource() {
 
-    override val name = "Dflix Kotlin"
+    override val name = "Dflix"
 
     override val baseUrl = "https://dflix.discoveryftp.net"
 
