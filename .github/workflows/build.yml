@@ -24,7 +24,7 @@ jobs:
         run: |
           echo "🤖 Gemini CLI is active and taking control of this build."
           echo "📡 Mode: Cloud-Native Auto-Development"
-          echo "🔐 Signing: Permanent Personal Key (Update-Ready)"
+          echo "🔐 Signing: Integrated Gradle PKCS12 (Safe & Consistent)"
           echo "🧹 Cleanup Policy: Automated (No Junk left on failure)"
           echo "🟢 System Check: OK"
 
@@ -46,25 +46,12 @@ jobs:
           git reset --hard HEAD
           echo "🧹 All local changes reverted. No junk left."
 
-      - name: Sign APK (Base64 Key)
-        if: success()
-        uses: r0adkll/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDirectory: src/all/dflix/build/outputs/apk/release
-          signingKeyBase64: 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
-          alias: dflix
-          keyStorePassword: dflix123
-          keyPassword: dflix123
-        env:
-          BUILD_TOOLS_VERSION: "36.0.0"
-
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: ${{ steps.sign_app.outputs.signedReleaseFile }}
+          path: src/all/dflix/build/outputs/apk/release/*.apk
 
       - name: Create Release
         if: success() && github.event_name == 'push' && github.ref == 'refs/heads/master'
@@ -75,10 +62,10 @@ jobs:
           body: |
             ### 🤖 Automated Gemini Build (Dflix)
             - **Fully Kotlin:** Migrated from Smali for better performance.
-            - **Optimized Search:** Refined filtering system.
-            - **Security:** Signed with Permanent Key.
+            - **Integrated Signing:** PKCS12 keystore handled by Gradle.
+            - **Consistency Fix:** Ensured same signature as backup.
             - **Status:** Build Successful & Clean
-          files: ${{ steps.sign_app.outputs.signedReleaseFile }}
+          files: src/all/dflix/build/outputs/apk/release/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -95,7 +82,7 @@ jobs:
             TARGET_NAME="$PKG_NAME-v$VERSION_NAME-c$VERSION_CODE.apk"
             
             mkdir -p repo_tmp/apk
-            cp ${{ steps.sign_app.outputs.signedReleaseFile }} repo_tmp/apk/$TARGET_NAME
+            cp src/all/dflix/build/outputs/apk/release/*.apk repo_tmp/apk/$TARGET_NAME
             
             cd repo_tmp
             git config user.name "Gemini Automation"

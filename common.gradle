@@ -63,11 +63,18 @@ android {
     }
 
     signingConfigs {
+        release {
+            storeFile rootProject.file("keystore.jks")
+            storePassword "dflix123"
+            keyAlias "dflix"
+            keyPassword "dflix123"
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
         }
     }
 
