@@ -51,9 +51,14 @@ class Dflix : AnimeHttpSource() {
     override fun headersBuilder() = super.headersBuilder()
         .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .add("Accept", "*/*")
-        .add("Cookie", cm.getCookiesHeaders())
         .add("Referer", "$baseUrl/")
         .add("X-Requested-With", "XMLHttpRequest")
+        .apply {
+            val cookies = cm.getCookiesHeaders()
+            if (cookies.isNotEmpty()) {
+                add("Cookie", cookies)
+            }
+        }
 
     private fun fixUrl(url: String): String {
         if (url.isBlank()) return url
@@ -214,13 +219,13 @@ class Dflix : AnimeHttpSource() {
                     .map { it.attr("href") }
                     .reversed()
                 
-                if (seasonLinks.isEmpty()) {
-                    sortEpisodes(extractEpisodes(document))
+                val episodes = if (seasonLinks.isEmpty()) {
+                    extractEpisodes(document)
                 } else {
                     val semaphore = Semaphore(3)
                     coroutineScope {
                         val allLinks = (listOf(anime.url) + seasonLinks).distinct()
-                        val episodes = allLinks.map { link ->
+                        allLinks.map { link ->
                             async {
                                 semaphore.withPermit {
                                     val res = client.newCall(GET(fixUrl(link), headers)).execute()
@@ -230,9 +235,9 @@ class Dflix : AnimeHttpSource() {
                                 }
                             }
                         }.awaitAll().flatten()
-                        sortEpisodes(episodes)
                     }
                 }
+                sortEpisodes(episodes)
             }
         }
     }
@@ -241,6 +246,8 @@ class Dflix : AnimeHttpSource() {
         return document.select("div.card").mapNotNull { element ->
             val titleElement = element.selectFirst("h5") ?: return@mapNotNull null
             val rawTitle = titleElement.ownText().trim()
+            if (rawTitle.isEmpty()) return@mapNotNull null
+            
             val seasonEpisode = rawTitle.split("&nbsp;").first().trim()
             val url = element.selectFirst("h5 a")?.attr("href")?.trim() ?: ""
             val qualityText = element.selectFirst("h5 .badge-fill")?.text() ?: ""
@@ -268,21 +275,28 @@ class Dflix : AnimeHttpSource() {
     }
 
     private fun sortEpisodes(list: List<EpisodeData>): List<SEpisode> {
-        return list.distinctBy { it.videoUrl }.sortedWith(
+        val distinctList = list.distinctBy { it.videoUrl }
+        return distinctList.sortedWith(
             compareByDescending<EpisodeData> { it.seasonNumber }
                 .thenByDescending { it.episodeNumber }
         ).mapIndexed { index, it ->
             SEpisode.create().apply {
                 url = it.videoUrl
                 name = "${it.seasonEpisode} - ${it.episodeName}".trim()
-                episode_number = (list.distinctBy { e -> e.videoUrl }.size - index).toFloat()
+                episode_number = (distinctList.size - index).toFloat()
                 scanlator = "${it.quality}  •  ${it.size}"
             }
         }
     }
 
     override suspend fun getVideoList(episode: SEpisode): List<Video> {
-        return listOf(Video(episode.url, "Video", fixUrl(episode.url), headers))
+        // Only pass UA and Referer to avoid player incompatibility with complex headers
+        val videoHeaders = Headers.Builder()
+            .add("User-Agent", headers["User-Agent"]!!)
+            .add("Referer", "$baseUrl/")
+            .add("Cookie", cm.getCookiesHeaders())
+            .build()
+        return listOf(Video(episode.url, "Video", fixUrl(episode.url), videoHeaders))
     }
 
     override fun episodeListParse(response: Response): List<SEpisode> = throw Exception("Not used")
@@ -307,14 +321,18 @@ class Dflix : AnimeHttpSource() {
             .build()
 
         @Volatile
-        private var cookies: List<Cookie>? = null
+        private var cookies: List<Cookie> = emptyList()
         private val lock = Any()
 
         fun getCookiesHeaders(): String {
-            val c = cookies ?: synchronized(lock) {
-                cookies ?: fetchCookies().also { cookies = it }
+            if (cookies.isEmpty()) {
+                synchronized(lock) {
+                    if (cookies.isEmpty()) {
+                        cookies = fetchCookies()
+                    }
+                }
             }
-            return c.joinToString("; ") { "${it.name}=${it.value}" }
+            return cookies.joinToString("; ") { "${it.name}=${it.value}" }
         }
 
         private fun fetchCookies(): List<Cookie> {
@@ -324,11 +342,7 @@ class Dflix : AnimeHttpSource() {
                 .build()
             return try {
                 val res = cookieClient.newCall(req).execute()
-                val cookieList = if (res.isRedirect) {
-                    Cookie.parseAll(cookieUrl, res.headers)
-                } else {
-                    emptyList()
-                }
+                val cookieList = Cookie.parseAll(cookieUrl, res.headers)
                 res.close()
                 cookieList
             } catch (e: Exception) {
