@@ -1,4 +1,4 @@
-name: Build Dflix Kotlin
+name: Build Dflix
 
 on:
   push:
@@ -71,9 +71,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}-gemini
-          name: Dflix Kotlin Gemini Optimized v${{ github.run_number }}
+          name: Dflix Gemini Optimized v${{ github.run_number }}
           body: |
-            ### 🤖 Automated Gemini Build (Dflix Kotlin)
+            ### 🤖 Automated Gemini Build (Dflix)
             - **Fully Kotlin:** Migrated from Smali for better performance.
             - **Optimized Search:** Refined filtering system.
             - **Security:** Signed with Permanent Key.
@@ -106,7 +106,7 @@ jobs:
             python3 generate_repo.py
             git add index.min.json repo.json
             
-            git commit -m "Update Dflix Kotlin to v$VERSION_NAME"
+            git commit -m "Update Dflix to v$VERSION_NAME"
             git push
           else
             echo "Secret 'GH_PAT' not found. Skipping extension repo update."

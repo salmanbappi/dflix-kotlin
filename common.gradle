@@ -39,8 +39,9 @@ android {
         }
         versionCode theme == null ? extVersionCode : theme.baseVersionCode + overrideVersionCode
         versionName "14.$versionCode"
+        def nameSuffix = project.ext.has("pkgNameSuffix") ? project.ext.pkgNameSuffix : project.parent.name + "." + project.name
         base {
-            archivesName = "aniyomi-$applicationIdSuffix-v$versionName"
+            archivesName = "aniyomi-$nameSuffix-v$versionName"
         }
         assert extClass.startsWith(".")
         manifestPlaceholders = [
