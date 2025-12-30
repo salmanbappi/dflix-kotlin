@@ -46,16 +46,16 @@ jobs:
           git reset --hard HEAD
           echo "🧹 All local changes reverted. No junk left."
 
-      - name: Sign APK (Permanent Key)
+      - name: Sign APK (Local Key)
         if: success()
         uses: r0adkll/sign-android-release@v1
         id: sign_app
         with:
           releaseDirectory: src/all/dflix/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
+          releaseSigningFile: keystore.jks
+          alias: dflix
+          keyStorePassword: dflix123
+          keyPassword: dflix123
         env:
           BUILD_TOOLS_VERSION: "36.0.0"
 
