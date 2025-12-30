@@ -43,16 +43,23 @@ class Dflix : AnimeHttpSource() {
 
     private val cm by lazy { CookieManager(client) }
 
-    override fun headersBuilder() = super.headersBuilder()
-        .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .add("Accept", "*/*")
-        .add("Cookie", cm.getCookiesHeaders())
-        .add("Referer", "$baseUrl/")
+    private val globalHeaders by lazy {
+        super.headersBuilder()
+            .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .add("Accept", "*/*")
+            .add("Cookie", cm.getCookiesHeaders())
+            .add("Referer", "$baseUrl/")
+            .add("X-Requested-With", "XMLHttpRequest")
+            .build()
+    }
+
+    override fun headersBuilder() = globalHeaders.newBuilder()
 
     private fun fixUrl(url: String): String {
         if (url.isBlank()) return url
         val u = url.trim().replace(" ", "%20")
-        return if (u.startsWith("http")) u else "$baseUrl$u"
+        if (u.startsWith("http")) return u
+        return if (u.startsWith("/")) "$baseUrl$u" else "$baseUrl/$u"
     }
 
     override suspend fun getSearchAnime(page: Int, query: String, filters: AnimeFilterList): AnimesPage {
@@ -60,13 +67,34 @@ class Dflix : AnimeHttpSource() {
             if (query.isNotEmpty()) {
                 val movies = fetchAnimeByType(query, "m")
                 val series = fetchAnimeByType(query, "s")
-                AnimesPage(movies + series, false)
+                val combined = sortByTitle(movies + series, query)
+                AnimesPage(combined, false)
             } else {
-                val url = Filters.getUrl(query, filters)
+                val url = Filters.getUrl(query, filters, page)
                 val response = client.newCall(GET(fixUrl(url), headers)).execute()
                 popularAnimeParse(response)
             }
         }
+    }
+
+    private fun sortByTitle(list: List<SAnime>, query: String): List<SAnime> {
+        return list.sortedByDescending { diceCoefficient(it.title.lowercase(), query.lowercase()) }
+    }
+
+    private fun diceCoefficient(s1: String, s2: String): Double {
+        if (s1.length < 2 || s2.length < 2) return 0.0
+        val s1Bigrams = HashSet<String>()
+        for (i in 0 until s1.length - 1) {
+            s1Bigrams.add(s1.substring(i, i + 2))
+        }
+        var intersect = 0
+        for (i in 0 until s2.length - 1) {
+            val bigram = s2.substring(i, i + 2)
+            if (s1Bigrams.remove(bigram)) {
+                intersect++
+            }
+        }
+        return 2.0 * intersect / (s1.length + s2.length - 2)
     }
 
     private suspend fun fetchAnimeByType(query: String, type: String): List<SAnime> {
@@ -89,8 +117,8 @@ class Dflix : AnimeHttpSource() {
             document.select("div.moviesearchiteam a").map { element ->
                 val card = element.selectFirst("div.p-1")
                 SAnime.create().apply {
-                    url = element.attr("href")
-                    thumbnail_url = element.selectFirst("img")?.attr("src") ?: "localhost"
+                    url = fixUrl(element.attr("href"))
+                    thumbnail_url = fixUrl(element.selectFirst("img")?.attr("src") ?: "")
                     var titleText = card?.selectFirst("div.searchtitle")?.text() ?: "Unknown"
                     if (type == "m") {
                         val details = card?.selectFirst("div.searchdetails")?.text() ?: ""
@@ -107,7 +135,7 @@ class Dflix : AnimeHttpSource() {
     }
 
     override fun searchAnimeRequest(page: Int, query: String, filters: AnimeFilterList): Request {
-        return GET(fixUrl(Filters.getUrl(query, filters)), headers)
+        return GET(fixUrl(Filters.getUrl(query, filters, page)), headers)
     }
 
     override fun searchAnimeParse(response: Response) = popularAnimeParse(response)
@@ -121,14 +149,21 @@ class Dflix : AnimeHttpSource() {
         val animeList = document.select("div.card a.cfocus").map { element ->
             val card = element.parent()
             SAnime.create().apply {
-                title = card?.selectFirst("div.details h3")?.text() ?: "Unknown"
-                url = element.attr("href")
-                thumbnail_url = element.selectFirst("img")?.attr("abs:src")?.replace(" ", "%20") ?: ""
+                var titleText = card?.selectFirst("div.details h3")?.text() ?: "Unknown"
+                val poster = element.selectFirst("div.poster")
+                if (poster != null) {
+                    val attrTitle = poster.attr("title")
+                    if (attrTitle.contains("4K", ignoreCase = true)) {
+                        titleText += " 4K"
+                    }
+                }
+                title = titleText
+                url = fixUrl(element.attr("href"))
+                thumbnail_url = fixUrl(element.selectFirst("img")?.attr("src") ?: "")
             }
         }.filter { it.title != "Unknown" }
         
-        val hasNextPage = document.selectFirst("a.page-link[rel=next], .pagination .next") != null
-        return AnimesPage(animeList, hasNextPage)
+        return AnimesPage(animeList, animeList.isNotEmpty())
     }
 
     override fun latestUpdatesRequest(page: Int) = popularAnimeRequest(page)
