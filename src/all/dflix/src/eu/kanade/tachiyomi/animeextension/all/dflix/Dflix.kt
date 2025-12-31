@@ -49,11 +49,13 @@ class Dflix : AnimeHttpSource() {
             var response = chain.proceed(request)
             
             val url = response.request.url.encodedPath
-            var needsRefresh = url.contains("login/destroy") || url.contains("login/index")
+            var isLoginPage = url.contains("login/destroy") || url.contains("login/index") || url.contains("login/demo")
             
+            var needsRefresh = isLoginPage
             if (!needsRefresh && response.isSuccessful && request.header("X-Dflix-Retry") == null) {
-                val bodyString = response.peekBody(1024 * 10).string()
-                if (bodyString.contains("login/demo") || bodyString.contains("Demo Login") || bodyString.contains("login/index")) {
+                val bodyString = response.peekBody(1024 * 20).string()
+                // If it contains "login/demo" but NOT "login/destroy", it's likely a login gate
+                if (bodyString.contains("login/demo") && !bodyString.contains("login/destroy")) {
                     needsRefresh = true
                 }
             }
