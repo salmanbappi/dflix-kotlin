@@ -37,9 +37,12 @@ class Dflix : AnimeHttpSource() {
 
     override val id: Long = 5181466391484419844L
 
-    override val client: OkHttpClient = super.client.newBuilder()
+    private val baseClient: OkHttpClient = super.client.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
+        .build()
+
+    override val client: OkHttpClient = baseClient.newBuilder()
         .dispatcher(okhttp3.Dispatcher().apply {
             maxRequests = 100
             maxRequestsPerHost = 100
@@ -54,7 +57,6 @@ class Dflix : AnimeHttpSource() {
             var needsRefresh = isLoginPage
             if (!needsRefresh && response.isSuccessful && request.header("X-Dflix-Retry") == null) {
                 val bodyString = response.peekBody(1024 * 20).string()
-                // If it contains "login/demo" but NOT "login/destroy", it's likely a login gate
                 if (bodyString.contains("login/demo") && !bodyString.contains("login/destroy")) {
                     needsRefresh = true
                 }
@@ -74,7 +76,7 @@ class Dflix : AnimeHttpSource() {
         }
         .build()
 
-    private val cm by lazy { CookieManager(client) }
+    private val cm by lazy { CookieManager(baseClient) }
 
     override fun headersBuilder() = super.headersBuilder()
         .add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
