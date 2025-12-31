@@ -32,7 +32,7 @@ android {
     defaultConfig {
         minSdk AndroidConfig.minSdk
         targetSdk AndroidConfig.targetSdk
-        applicationIdSuffix project.parent.name + "." + project.name
+        applicationIdSuffix project.ext.has("pkgNameSuffix") ? project.ext.pkgNameSuffix : project.parent.name + "." + project.name
         versionCode theme == null ? extVersionCode : theme.baseVersionCode + overrideVersionCode
         versionName "14.$versionCode"
         base {
