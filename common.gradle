@@ -32,23 +32,17 @@ android {
     defaultConfig {
         minSdk AndroidConfig.minSdk
         targetSdk AndroidConfig.targetSdk
-        if (project.ext.has("applicationId")) {
-            applicationId project.ext.applicationId
-        } else {
-            applicationIdSuffix project.ext.has("pkgNameSuffix") ? project.ext.pkgNameSuffix : project.parent.name + "." + project.name
-        }
+        applicationIdSuffix project.parent.name + "." + project.name
         versionCode theme == null ? extVersionCode : theme.baseVersionCode + overrideVersionCode
         versionName "14.$versionCode"
-        def nameSuffix = project.ext.has("pkgNameSuffix") ? project.ext.pkgNameSuffix : project.parent.name + "." + project.name
         base {
-            archivesName = "aniyomi-$nameSuffix-v$versionName"
+            archivesName = "aniyomi-$applicationIdSuffix-v$versionName"
         }
         assert extClass.startsWith(".")
         manifestPlaceholders = [
                 appName : "Aniyomi: $extName",
                 extClass: extClass,
                 nsfw    : project.ext.find("isNsfw") ? 1 : 0,
-                author  : project.ext.find("author") ?: "",
         ]
         String baseUrl = project.ext.find("baseUrl") ?: ""
         if (theme != null && !baseUrl.isEmpty()) {
