@@ -46,20 +46,28 @@ class Dflix : AnimeHttpSource() {
         })
         .addInterceptor { chain ->
             val request = chain.request()
-            val response = chain.proceed(request)
+            var response = chain.proceed(request)
             
-            if (response.request.url.encodedPath.contains("login/destroy") || 
-                response.request.url.encodedPath.contains("login/index")) {
+            val url = response.request.url.encodedPath
+            var needsRefresh = url.contains("login/destroy") || url.contains("login/index")
+            
+            if (!needsRefresh && response.isSuccessful) {
+                val bodyString = response.peekBody(1024 * 10).string()
+                if (bodyString.contains("login/demo") || bodyString.contains("Demo Login") || bodyString.contains("login/index")) {
+                    needsRefresh = true
+                }
+            }
+            
+            if (needsRefresh) {
                 response.close()
                 cm.refreshCookies()
                 val newRequest = request.newBuilder()
                     .removeHeader("Cookie")
                     .addHeader("Cookie", cm.getCookiesHeaders())
                     .build()
-                chain.proceed(newRequest)
-            } else {
-                response
+                response = chain.proceed(newRequest)
             }
+            response
         }
         .build()
 
@@ -136,14 +144,16 @@ class Dflix : AnimeHttpSource() {
             val document = response.asJsoup()
             response.close()
             
-            document.select("div.moviesearchiteam a").map { element ->
-                val card = element.selectFirst("div.p-1")
+            document.select("div.moviesearchiteam a, a:has(div.fcard), a:has(div.card), div.card a").map { element ->
+                val card = element.selectFirst("div.p-1, div.fcard, div.card") ?: element
                 SAnime.create().apply {
                     url = fixUrl(element.attr("href"))
                     thumbnail_url = fixUrl(element.selectFirst("img")?.attr("src") ?: "")
-                    var titleText = card?.selectFirst("div.searchtitle")?.text() ?: "Unknown"
+                    var titleText = card.selectFirst("div.searchtitle, div.ftitle, h3, .ftitle")?.text() 
+                        ?: element.selectFirst(".ftitle, .searchtitle")?.text()
+                        ?: "Unknown"
                     if (type == "m") {
-                        val details = card?.selectFirst("div.searchdetails")?.text() ?: ""
+                        val details = card.selectFirst("div.searchdetails, div.fdetails")?.text() ?: ""
                         if (details.contains("4K", ignoreCase = true)) {
                             titleText += " 4K"
                         }
@@ -168,11 +178,11 @@ class Dflix : AnimeHttpSource() {
 
     override fun popularAnimeParse(response: Response): AnimesPage {
         val document = response.asJsoup()
-        val animeList = document.select("div.card a.cfocus").map { element ->
-            val card = element.parent()
+        val animeList = document.select("div.card a.cfocus, a:has(div.fcard), a:has(div.card), div.moviesearchiteam a").map { element ->
+            val card = element.selectFirst("div.fcard, div.card, div.details") ?: element.parent()
             SAnime.create().apply {
-                var titleText = card?.selectFirst("div.details h3")?.text() ?: "Unknown"
-                val poster = element.selectFirst("div.poster")
+                var titleText = card?.selectFirst("div.details h3, div.ftitle, h3, .ftitle")?.text() ?: "Unknown"
+                val poster = element.selectFirst("div.poster, div.fcard, .card, img")
                 if (poster != null) {
                     val attrTitle = poster.attr("title")
                     if (attrTitle.contains("4K", ignoreCase = true)) {
@@ -333,10 +343,6 @@ class Dflix : AnimeHttpSource() {
     class CookieManager(private val client: OkHttpClient) {
         private val cookieUrl = "https://dflix.discoveryftp.net/login/demo".toHttpUrl()
         
-        private val cookieClient = client.newBuilder()
-            .followRedirects(false)
-            .build()
-
         @Volatile
         private var cookies: List<Cookie> = emptyList()
         private val lock = Any()
@@ -359,15 +365,29 @@ class Dflix : AnimeHttpSource() {
         }
 
         private fun fetchCookies(): List<Cookie> {
+            val jar = object : okhttp3.CookieJar {
+                val cookieList = mutableListOf<Cookie>()
+                override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+                    cookieList.addAll(cookies)
+                }
+                override fun loadForRequest(url: HttpUrl): List<Cookie> = emptyList()
+            }
+
+            val cookieClient = client.newBuilder()
+                .followRedirects(true)
+                .cookieJar(jar)
+                .build()
+
             val req = Request.Builder()
                 .url(cookieUrl)
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Referer", "https://dflix.discoveryftp.net/")
                 .build()
+
             return try {
                 val res = cookieClient.newCall(req).execute()
-                val cookieList = Cookie.parseAll(cookieUrl, res.headers)
                 res.close()
-                cookieList
+                jar.cookieList.distinctBy { it.name }
             } catch (e: Exception) {
                 emptyList()
             }
