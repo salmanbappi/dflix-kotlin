@@ -29,7 +29,7 @@ class Dflix : AnimeHttpSource() {
 
     override val name = "Dflix"
 
-    override val baseUrl = "https://dflix.discoveryftp.net"
+    override val baseUrl = BASE_URL
 
     override val lang = "all"
 
@@ -50,11 +50,18 @@ class Dflix : AnimeHttpSource() {
             
             if (response.request.url.encodedPath.contains("login/destroy") || 
                 response.request.url.encodedPath.contains("login/index")) {
+                
+                // Prevent infinite loops by checking a custom header or retry count
+                if (request.header("X-Retry-Count") != null) {
+                    return@addInterceptor response
+                }
+
                 response.close()
                 cm.refreshCookies()
                 val newRequest = request.newBuilder()
                     .removeHeader("Cookie")
                     .addHeader("Cookie", cm.getCookiesHeaders())
+                    .addHeader("X-Retry-Count", "1") // Mark as retried
                     .build()
                 chain.proceed(newRequest)
             } else {
@@ -331,7 +338,7 @@ class Dflix : AnimeHttpSource() {
     }
 
     class CookieManager(private val client: OkHttpClient) {
-        private val cookieUrl = "https://dflix.discoveryftp.net/login/demo".toHttpUrl()
+        private val cookieUrl = "$BASE_URL/login/demo".toHttpUrl()
         
         private val cookieClient = client.newBuilder()
             .followRedirects(false)
@@ -375,6 +382,7 @@ class Dflix : AnimeHttpSource() {
     }
 
     companion object {
+        const val BASE_URL = "https://dflix.discoveryftp.net"
         private val SEASON_PATTERN = Regex("""S(\d+)""")
         private val EPISODE_PATTERN = Regex("""EP (\d+)""")
         private val sizeRegex = Regex(""".*\s(\d+\.\d+\s+MB)$""")
