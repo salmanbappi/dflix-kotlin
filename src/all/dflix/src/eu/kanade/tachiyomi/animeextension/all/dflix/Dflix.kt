@@ -51,19 +51,20 @@ class Dflix : AnimeHttpSource() {
             val url = response.request.url.encodedPath
             var needsRefresh = url.contains("login/destroy") || url.contains("login/index")
             
-            if (!needsRefresh && response.isSuccessful) {
+            if (!needsRefresh && response.isSuccessful && request.header("X-Dflix-Retry") == null) {
                 val bodyString = response.peekBody(1024 * 10).string()
                 if (bodyString.contains("login/demo") || bodyString.contains("Demo Login") || bodyString.contains("login/index")) {
                     needsRefresh = true
                 }
             }
             
-            if (needsRefresh) {
+            if (needsRefresh && request.header("X-Dflix-Retry") == null) {
                 response.close()
                 cm.refreshCookies()
                 val newRequest = request.newBuilder()
                     .removeHeader("Cookie")
                     .addHeader("Cookie", cm.getCookiesHeaders())
+                    .addHeader("X-Dflix-Retry", "true")
                     .build()
                 response = chain.proceed(newRequest)
             }
