@@ -1,4 +1,0 @@
-> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
-> Task :buildSrc:generateExternalPluginSpecBuilders UP-TO-DATE
-> Task :buildSrc:extractPrecompiledScriptPluginPlugins UP-TO-DATE
-> Task :buildSrc:compilePluginsBlocks UP-TO-DATE

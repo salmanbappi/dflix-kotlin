@@ -20,6 +20,16 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Auto Bump Version
+        run: |
+          chmod +x .github/scripts/bump_gradle_version.sh
+          .github/scripts/bump_gradle_version.sh
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+          git add src/all/dflix/build.gradle
+          git commit -m "Auto-bump version [skip ci]" || echo "No changes to commit"
+          git push origin master || echo "No changes to push"
+
       - name: Gemini Intelligence
         run: |
           echo "🤖 Gemini CLI is active and taking control of this build."
