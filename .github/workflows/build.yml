@@ -108,3 +108,26 @@ jobs:
           else
             echo "Secret 'GH_PAT' not found. Skipping extension repo update."
           fi
+      - name: Notify Telegram (Success)
+        if: success()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            ✅ *Build Success* for `dflix`
+            Commit: `${{ github.event.head_commit.message }}`
+            [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+      - name: Notify Telegram (Failure)
+        if: failure()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          format: markdown
+          message: |
+            ❌ *Build Failed* for `dflix`
+            Commit: `${{ github.event.head_commit.message }}`
+            [View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
